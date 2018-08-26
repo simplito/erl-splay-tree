@@ -30,7 +30,7 @@
 
 -export([index/2, at/2]).
 
--export([reduce/3, reset/1]).
+-export([reducel/3, reducer/3, reset/1]).
 
 -export_type([tree/0, tree/2, key/0, value/0,
               update_fn/0, map_fn/0, fold_fn/0, fold_while_fn/0, pred_fn/0]).
@@ -81,7 +81,7 @@
 -type index()           :: pos_integer().
 
 -type maybe_tree_node() :: tree_node() | nil.
--type tree_node()       :: {key(), value(), maybe_tree_node(), maybe_tree_node(), size() | -1, error | {ok, term()}}.
+-type tree_node()       :: {key(), value(), maybe_tree_node(), maybe_tree_node(), size() | -1, nval | {lval | rval, term()}}.
 -type direction()       :: lft | rgt. % left | right
 
 %%--------------------------------------------------------------------------------
@@ -133,28 +133,44 @@ update_size({K, V, Lft, Rgt, -1, Val}) ->
     UpdSize = LftSize + RgtSize + 1,
     {UpdSize, {K, V, UpdLft, UpdRgt, UpdSize, Val}}.
 
-%% @doc Recursively processes the tree building return value using given reduce function 
-%% and initial value for empty tree.
-%% This function stores results in the resulting tree for faster consecutive executions
-%% assuming the same reduce function and initial value will be used.
-%% See also reset/1.
+%% @doc Folds the entries in `Tree' by ascending order using builtin cache of the tree.
+%% Use with caution! 
+%% If you used different function or initial value parameters, or used reducer/3 before
+%% you have to reset tree cache using reset/1 function.
 %%
 %% == Example ==
 %%
 %% ```
 %% Tree0 = splay_tree_ex:from_list([{a,1},{b,3},{c,5},{d,6}]).
-%% {15, Tree1} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal + Val + RVal end, 0, Tree0).
-%% {15, Tree1} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal + Val + RVal end, 0, Tree1).
+%% {15, Tree1} = splay_tree_ex:reducel(fun(_, Val, Acc) -> Val + Acc end, 0, Tree0).
+%% {15, Tree1} = splay_tree_ex:reducel(fun(_, Val, Acc) -> Val + Acc end, 0, Tree1).
 %% '''
--spec reduce(fun((Value, Value, Value) -> Value), Value, tree()) -> {Value, tree()}.
-reduce(_, NilVal, nil) -> {NilVal, nil};
-reduce(_, _, {_, _, _, _, _, {ok, Val}} = Node) -> {Val, Node};
-reduce(Fun, NilVal, {K, V, Lft, Rgt, Size, error}) ->
-    {LftVal, UpdLft} = reduce(Fun, NilVal, Lft),
-    {RgtVal, UpdRgt} = reduce(Fun, NilVal, Rgt),
-    UpdVal = Fun(LftVal, V, RgtVal),
-    {UpdVal, {K, V, UpdLft, UpdRgt, Size, {ok, UpdVal}}}.
+-spec reducel(fold_fn(), Initial :: term(), tree()) -> {Result :: term(), tree()}.
+reducel(_, Initial, nil) -> {Initial, nil};
+reducel(_, _, {_, _, _, _, _, {lval, Val}} = Node) -> {Val, Node};
+reducel(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
+    {Acc, UpdLft} = reducel(Fun, Initial, Lft),
+    {UpdVal, UpdRgt} = reducel(Fun, Fun(K, V, Acc), Rgt),
+    {UpdVal, {K, V, UpdLft, UpdRgt, Size, {lval, UpdVal}}}.
 
+%% @doc Folds the entries in `Tree' by descending order using builtin cache of the tree.
+%% If you used different function or initial value parameters, or used reducel/3 before
+%% you have to reset tree cache using reset/1 function.
+%%
+%% == Example ==
+%%
+%% ```
+%% Tree0 = splay_tree_ex:from_list([{a,1},{b,3},{c,5},{d,6}]).
+%% {15, Tree1} = splay_tree_ex:reducer(fun(_, Val, Acc) -> Val + Acc end, 0, Tree0).
+%% {15, Tree1} = splay_tree_ex:reducer(fun(_, Val, Acc) -> Val + Acc end, 0, Tree1).
+%% '''
+-spec reducer(fold_fn(), Initial :: term(), tree()) -> {Result :: term(), tree()}.
+reducer(_, Initial, nil) -> {Initial, nil};
+reducer(_, _, {_, _, _, _, _, {rval, Val}} = Node) -> {Val, Node};
+reducer(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
+    {Acc, UpdRgt} = reducer(Fun, Initial, Rgt),
+    {UpdVal, UpdLft} = reducer(Fun, Fun(K, V, Acc), Lft),
+    {UpdVal, {K, V, UpdLft, UpdRgt, Size, {rval, UpdVal}}}.
 
 %% @doc Resets "reduce cache" in the given tree. 
 %% You have to use this if you plan to use different reduce function and/or initial value
@@ -171,7 +187,7 @@ reduce(Fun, NilVal, {K, V, Lft, Rgt, Size, error}) ->
 %% '''
 -spec reset(tree()) -> tree().
 reset(nil) -> nil;
-reset({K, V, Lft, Rgt, Size, _}) -> {K, V, reset(Lft), reset(Rgt), Size, error}.
+reset({K, V, Lft, Rgt, Size, _}) -> {K, V, reset(Lft), reset(Rgt), Size, nval}.
 
 %% @doc Returns `true' if the tree is empty, otherwise `false'.
 %%
@@ -701,24 +717,24 @@ val(Node, Value) -> setelement(2, Node, Value).
 lft({_, _, Lft, _, _, _}) -> Lft.
 
 -spec lft(tree_node(), maybe_tree_node()) -> tree_node().
-lft({Key, Val, _, nil, _, _}, nil) -> {Key, Val, nil, nil, 1, error};
-lft({Key, Val, _, Rgt, _, _}, Lft) -> {Key, Val, Lft, Rgt, -1, error}.
+lft({Key, Val, _, nil, _, _}, nil) -> {Key, Val, nil, nil, 1, nval};
+lft({Key, Val, _, Rgt, _, _}, Lft) -> {Key, Val, Lft, Rgt, -1, nval}.
 
 -spec rgt(tree_node()) -> maybe_tree_node().
 rgt({_, _, _, Rgt, _, _}) -> Rgt.
 
 -spec rgt(tree_node(), maybe_tree_node()) -> tree_node().
-rgt({Key, Val, nil, _, _, _}, nil) -> {Key, Val, nil, nil, 1, error};
-rgt({Key, Val, Lft, _, _, _}, Rgt) -> {Key, Val, Lft, Rgt, -1, error}.
+rgt({Key, Val, nil, _, _, _}, nil) -> {Key, Val, nil, nil, 1, nval};
+rgt({Key, Val, Lft, _, _, _}, Rgt) -> {Key, Val, Lft, Rgt, -1, nval}.
 
 -spec lft_rgt(tree_node(), maybe_tree_node(), maybe_tree_node()) -> tree_node().
-lft_rgt(Node, Lft, Rgt) -> {key(Node), val(Node), Lft, Rgt, -1, error}.
+lft_rgt(Node, Lft, Rgt) -> {key(Node), val(Node), Lft, Rgt, -1, nval}.
 
 -spec rgt_lft(tree_node(), maybe_tree_node(), maybe_tree_node()) -> tree_node().
-rgt_lft(Node, Rgt, Lft) -> {key(Node), val(Node), Lft, Rgt, -1, error}.
+rgt_lft(Node, Rgt, Lft) -> {key(Node), val(Node), Lft, Rgt, -1, nval}.
 
 -spec leaf(key(), value()) -> tree_node().
-leaf(Key, Value) -> {Key, Value, nil, nil, 1, error}.
+leaf(Key, Value) -> {Key, Value, nil, nil, 1, nval}.
 
 -spec pop_front(tree_node()) -> maybe_tree_node().
 pop_front(Node) ->
@@ -798,7 +814,7 @@ splay(X, [{Dir,P}, {_,G} | Path]) ->   % zig-zag
 
 -spec map_node(map_fn(), maybe_tree_node()) -> maybe_tree_node().
 map_node(_Fun, nil)                 -> nil;
-map_node(Fun, {Key, Val, Lft, Rgt, Size, _}) -> {Key, Fun(Key, Val), map_node(Fun, Lft), map_node(Fun, Rgt), Size, error}.
+map_node(Fun, {Key, Val, Lft, Rgt, Size, _}) -> {Key, Fun(Key, Val), map_node(Fun, Lft), map_node(Fun, Rgt), Size, nval}.
 
 -spec foldl_node(fold_fn(), maybe_tree_node(), term()) -> term().
 foldl_node(_Fun, nil, Acc)                 -> Acc;

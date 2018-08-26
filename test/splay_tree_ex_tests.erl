@@ -376,22 +376,37 @@ update_size_test() ->
     {5, Tree1} = splay_tree_ex:update_size(Tree0),
     {5, Tree1} = splay_tree_ex:update_size(Tree1).
 
-reduce_test() ->
-    ShuffledList = [I || {_,I} <- lists:sort([{rand:uniform(),K} || K <- lists:seq(1,100)])],
-    Entries = [{I/2.0, I} || I <- ShuffledList],
-    Tree0 = splay_tree_ex:from_list(Entries),
+reducel_test() ->
+    Fn = fun(_, V, Acc) -> [V | Acc] end,
 
-    {0, nil} = splay_tree_ex:reduce(fun(V,L,R) -> V + L + R end, 0, splay_tree_ex:new()),
+    {0, _} = splay_tree_ex:reducel(Fn, 0, splay_tree_ex:new()),
 
-    {5050,  Tree1} = splay_tree_ex:reduce(fun(V,L,R) -> L + V + R end, 0, Tree0),
-    {5050,  Tree1} = splay_tree_ex:reduce(fun(V,L,R) -> L + V + R end, 0, Tree1),
+    Tree0 = splay_tree_ex:from_list(entries()),
+    Expected = lists:foldl(fun({_, V}, Acc) -> [V | Acc] end, [], sorted_unique_entires() ),
 
-    {64000000000000000000000000, Tree2} = splay_tree_ex:reduce(fun(V,L,R) -> (L * V * R) rem 100000000000000000000000000 end, 1, Tree0),
-    {64000000000000000000000000, Tree2} = splay_tree_ex:reduce(fun(V,L,R) -> (L * V * R) rem 100000000000000000000000000 end, 1, Tree2).
+    {Expected,  Tree1} = splay_tree_ex:reducel(Fn, [], Tree0),
+    {Expected,  Tree1} = splay_tree_ex:reducel(Fn, [], Tree1),
+    {_, Tree2} = splay_tree_ex:find(rand:uniform(100), Tree1),
+    {Expected,  _} = splay_tree_ex:reducel(Fn, [], Tree2).
+
+reducer_test() ->
+    Fn = fun(_, V, Acc) -> [V | Acc] end,
+
+    {0, _} = splay_tree_ex:reducer(Fn, 0, splay_tree_ex:new()),
+
+    Tree0 = splay_tree_ex:from_list(entries()),
+    Expected = lists:foldr(fun({_, V}, Acc) -> [V | Acc] end, [], sorted_unique_entires() ),
+
+    {Expected,  Tree1} = splay_tree_ex:reducer(Fn, [], Tree0),
+    {Expected,  Tree1} = splay_tree_ex:reducer(Fn, [], Tree1),
+    {_, Tree2} = splay_tree_ex:find(rand:uniform(100), Tree1),
+    {Expected,  _} = splay_tree_ex:reducer(Fn, [], Tree2).
 
 reset_test() ->
     Tree0 = splay_tree_ex:from_list([{a,1},{b,3},{c,5},{d,6}]),
-    {15, Tree1} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal + Val + RVal end, 0, Tree0),
-    {15, Tree1} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal + Val + RVal end, 0, Tree1),
+    SumFn = fun(_, V, Acc) -> V + Acc end,
+    MulFn = fun(_, V, Acc) -> V * Acc end,
+    {15, Tree1} = splay_tree_ex:reducel(SumFn, 0, Tree0),
+    {15, Tree1} = splay_tree_ex:reducel(SumFn, 0, Tree1),
     Tree2 = splay_tree_ex:reset(Tree1),
-    {90, _} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal * Val * RVal end, 1, Tree2).
+    {90, _} = splay_tree_ex:reducel(MulFn, 1, Tree2).
