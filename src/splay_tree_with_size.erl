@@ -24,7 +24,7 @@
          take_largest/1, take_smallest/1,
          find_lower_bound/2, find_upper_bound/2,
          lookup/2, get_value/3, erase/2,
-         size/1, is_empty/1, update/4, update/3, filter/2, map/2,
+         size/1, update_size/1, is_empty/1, update/4, update/3, filter/2, map/2,
          keys/1, values/1,
          foldl/3, foldr/3, foldl_while/3, foldr_while/3, from_list/1, to_list/1, split/2]).
 
@@ -79,7 +79,7 @@
 -type index()           :: pos_integer().
 
 -type maybe_tree_node() :: tree_node() | nil.
--type tree_node()       :: {key(), value(), maybe_tree_node(), maybe_tree_node(), size()}.
+-type tree_node()       :: {key(), value(), maybe_tree_node(), maybe_tree_node(), size() | -1}.
 -type direction()       :: lft | rgt. % left | right
 
 %%--------------------------------------------------------------------------------
@@ -108,8 +108,16 @@ new() -> nil.
 %% 1 = splay_tree:size(Tree1).
 %% '''
 -spec size(tree()) -> non_neg_integer().
-size(nil)  -> 0;
-size(Tree) -> element(5, Tree).
+size(Tree) -> {Size, _} = update_size(Tree), Size.
+
+-spec update_size(tree()) -> {size(), tree()}.
+update_size(nil) -> {0, nil};
+update_size({_, _, _, _, Size} = Node) when Size >= 0 -> {Size, Node};
+update_size({K, V, Lft, Rgt, -1}) ->
+    {LftSize, UpdLft} = update_size(Lft),
+    {RgtSize, UpdRgt} = update_size(Rgt),
+    UpdSize = LftSize + RgtSize + 1,
+    {UpdSize, {K, V, UpdLft, UpdRgt, UpdSize}}.
 
 %% @doc Returns `true' if the tree is empty, otherwise `false'.
 %%
@@ -596,7 +604,9 @@ filter(Pred, Tree) ->
 index(Key, Tree) ->
     case find(Key, Tree) of
         {error, _} = Error -> Error;
-        {{ok, _}, Tree2} -> {{ok, node_index(Tree2)}, Tree2}
+        {{ok, _}, Tree2} -> 
+            {_, Tree3} = update_size(Tree2),
+            {{ok, node_index(Tree3)}, Tree3}
     end.
 
 %% @doc Finds the entry with given index in the tree.
@@ -615,7 +625,8 @@ index(Key, Tree) ->
 %% '''
 -spec at(index(), tree()) -> {{ok, key(), value()}, tree()} | {error, tree()}.
 at(Index, Tree) ->
-    case path_to_index(Index, Tree) of
+    {_, Tree1} = update_size(Tree),
+    case path_to_index(Index, Tree1) of
         {nil,  Path} -> {error, splay(Path)};
         {Node, Path} -> {{ok, key(Node), val(Node)}, splay(Node, Path)}
     end.
@@ -637,20 +648,20 @@ lft({_, _, Lft, _, _}) -> Lft.
 
 -spec lft(tree_node(), maybe_tree_node()) -> tree_node().
 lft({Key, Val, _, nil, _}, nil) -> {Key, Val, nil, nil, 1};
-lft({Key, Val, _, Rgt, _}, Lft) -> {Key, Val, Lft, Rgt, size(Lft) + size(Rgt) + 1}.
+lft({Key, Val, _, Rgt, _}, Lft) -> {Key, Val, Lft, Rgt, -1}.
 
 -spec rgt(tree_node()) -> maybe_tree_node().
 rgt({_, _, _, Rgt, _}) -> Rgt.
 
 -spec rgt(tree_node(), maybe_tree_node()) -> tree_node().
 rgt({Key, Val, nil, _, _}, nil) -> {Key, Val, nil, nil, 1};
-rgt({Key, Val, Lft, _, _}, Rgt) -> {Key, Val, Lft, Rgt, size(Lft) + size(Rgt) + 1}.
+rgt({Key, Val, Lft, _, _}, Rgt) -> {Key, Val, Lft, Rgt, -1}.
 
 -spec lft_rgt(tree_node(), maybe_tree_node(), maybe_tree_node()) -> tree_node().
-lft_rgt(Node, Lft, Rgt) -> {key(Node), val(Node), Lft, Rgt, size(Lft) + size(Rgt) + 1}.
+lft_rgt(Node, Lft, Rgt) -> {key(Node), val(Node), Lft, Rgt, -1}.
 
 -spec rgt_lft(tree_node(), maybe_tree_node(), maybe_tree_node()) -> tree_node().
-rgt_lft(Node, Rgt, Lft) -> {key(Node), val(Node), Lft, Rgt, size(Lft) + size(Rgt) + 1}.
+rgt_lft(Node, Rgt, Lft) -> {key(Node), val(Node), Lft, Rgt, -1}.
 
 -spec leaf(key(), value()) -> tree_node().
 leaf(Key, Value) -> {Key, Value, nil, nil, 1}.

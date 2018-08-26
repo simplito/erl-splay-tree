@@ -18,7 +18,7 @@
       Case      :: {1, 100000}  % {Size, LoopCount}
                  | {100, 1000}
                  | {10000, 10},
-      Method    :: store | successful_find | successful_erase,
+      Method    :: store | successful_find | successful_erase | size | update_size,
       ElapsedMicroSeconds :: non_neg_integer().
 bench() ->
     Result0 = do_bench(integer, fun generate_sorted_integer_entries/1),
@@ -60,7 +60,11 @@ do_bench(KeyType, GenerateFun) ->
                          {KeyType, successful_find, sorted, {Size, LoopCount}, Module, times(LoopCount, Sorted, Map, method(Module, find))},
                          {KeyType, successful_find, random, {Size, LoopCount}, Module, times(LoopCount, Random, Map, method(Module, find))},
                          {KeyType, successful_erase, sorted, {Size, LoopCount}, Module, times(LoopCount, Sorted, Map, method(Module, erase))},
-                         {KeyType, successful_erase, random, {Size, LoopCount}, Module, times(LoopCount, Random, Map, method(Module, erase))}
+                         {KeyType, successful_erase, random, {Size, LoopCount}, Module, times(LoopCount, Random, Map, method(Module, erase))},
+                         {KeyType, size, sorted, {Size, LoopCount}, Module, times(LoopCount, Sorted, Empty, method(Module, size))},
+                         {KeyType, size, random, {Size, LoopCount}, Module, times(LoopCount, Random, Empty, method(Module, size))},
+                         {KeyType, update_size, sorted, {Size, LoopCount}, Module, times(LoopCount, Sorted, Empty, method(Module, update_size))},
+                         {KeyType, update_size, random, {Size, LoopCount}, Module, times(LoopCount, Random, Empty, method(Module, update_size))}
                         ]
                 end,
                 modules())
@@ -83,13 +87,23 @@ method(splay_tree, from_list) -> fun (List) -> splay_tree:from_list(shuffle(List
 method(splay_tree, store)     -> fun ({K, V}, M) -> splay_tree:store(K, V, M) end;
 method(splay_tree, find)      -> fun ({K, _}, M) -> element(2, splay_tree:find(K, M)) end;
 method(splay_tree, erase)     -> fun ({K, _}, M) -> splay_tree:erase(K, M) end;
+method(splay_tree, size)     -> fun (_, M) -> splay_tree:size(M), M end;
+method(splay_tree, update_size) -> fun (_, M) -> M end;
 
 method(splay_tree_with_size, from_list) -> fun (List) -> splay_tree_with_size:from_list(shuffle(List)) end;
 method(splay_tree_with_size, store)     -> fun ({K, V}, M) -> splay_tree_with_size:store(K, V, M) end;
 method(splay_tree_with_size, find)      -> fun ({K, _}, M) -> element(2, splay_tree_with_size:find(K, M)) end;
-method(splay_tree_with_size, erase)     -> fun ({K, _}, M) -> splay_tree_with_size:erase(K, M) end.
+method(splay_tree_with_size, erase)     -> fun ({K, _}, M) -> splay_tree_with_size:erase(K, M) end;
+method(splay_tree_with_size, size)      -> fun (_, M) -> splay_tree_with_size:size(M), M end;
+method(splay_tree_with_size, update_size) -> fun (_, M) -> element(2, splay_tree_with_size:update_size(M)) end.
 
 times(LoopCount, InputData, Map, Fun) ->
+    true = garbage_collect(),
+    {BenchCost, _} =
+                timer:tc(
+                  fun () ->
+                      loop(LoopCount, InputData, Map, fun(_,M) -> M end)
+                  end),
     Loop = 
         fun Loop(TimeLeft, Acc) ->
             true = garbage_collect(),
@@ -105,7 +119,7 @@ times(LoopCount, InputData, Map, Fun) ->
             end
         end,
     Measures = Loop(500000, []),
-    round(lists:sum(Measures)/length(Measures)).
+    round(lists:sum(Measures)/length(Measures)) - BenchCost.
 
 loop(0, _, _, _) ->
     ok;
