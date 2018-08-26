@@ -30,7 +30,7 @@
 
 -export([index/2, at/2]).
 
--export([reducel/3, reducer/3, reset/1]).
+-export([foldl_cache/3, foldr_cache/3, reset_cache/1]).
 
 -export_type([tree/0, tree/2, key/0, value/0,
               update_fn/0, map_fn/0, fold_fn/0, fold_while_fn/0, pred_fn/0]).
@@ -135,41 +135,41 @@ update_size({K, V, Lft, Rgt, -1, Val}) ->
 
 %% @doc Folds the entries in `Tree' by ascending order using builtin cache of the tree.
 %% Use with caution! 
-%% If you used different function or initial value parameters, or used reducer/3 before
-%% you have to reset tree cache using reset/1 function.
+%% If you used different function or initial value parameters, or used foldr_cache/3 before
+%% you have to reset tree cache using reset_cache/1 function.
 %%
 %% == Example ==
 %%
 %% ```
 %% Tree0 = splay_tree_ex:from_list([{a,1},{b,3},{c,5},{d,6}]).
-%% {15, Tree1} = splay_tree_ex:reducel(fun(_, Val, Acc) -> Val + Acc end, 0, Tree0).
-%% {15, Tree1} = splay_tree_ex:reducel(fun(_, Val, Acc) -> Val + Acc end, 0, Tree1).
+%% {15, Tree1} = splay_tree_ex:foldl_cache(fun(_, Val, Acc) -> Val + Acc end, 0, Tree0).
+%% {15, Tree1} = splay_tree_ex:foldl_cache(fun(_, Val, Acc) -> Val + Acc end, 0, Tree1).
 %% '''
--spec reducel(fold_fn(), Initial :: term(), tree()) -> {Result :: term(), tree()}.
-reducel(_, Initial, nil) -> {Initial, nil};
-reducel(_, _, {_, _, _, _, _, {lval, Val}} = Node) -> {Val, Node};
-reducel(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
-    {Acc, UpdLft} = reducel(Fun, Initial, Lft),
-    {UpdVal, UpdRgt} = reducel(Fun, Fun(K, V, Acc), Rgt),
+-spec foldl_cache(fold_fn(), Initial :: term(), tree()) -> {Result :: term(), tree()}.
+foldl_cache(_, Initial, nil) -> {Initial, nil};
+foldl_cache(_, _, {_, _, _, _, _, {lval, Val}} = Node) -> {Val, Node};
+foldl_cache(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
+    {Acc, UpdLft} = foldl_cache(Fun, Initial, Lft),
+    {UpdVal, UpdRgt} = foldl_cache(Fun, Fun(K, V, Acc), Rgt),
     {UpdVal, {K, V, UpdLft, UpdRgt, Size, {lval, UpdVal}}}.
 
 %% @doc Folds the entries in `Tree' by descending order using builtin cache of the tree.
-%% If you used different function or initial value parameters, or used reducel/3 before
-%% you have to reset tree cache using reset/1 function.
+%% If you used different function or initial value parameters, or used foldl_cache/3 before
+%% you have to reset tree cache using reset_cache/1 function.
 %%
 %% == Example ==
 %%
 %% ```
 %% Tree0 = splay_tree_ex:from_list([{a,1},{b,3},{c,5},{d,6}]).
-%% {15, Tree1} = splay_tree_ex:reducer(fun(_, Val, Acc) -> Val + Acc end, 0, Tree0).
-%% {15, Tree1} = splay_tree_ex:reducer(fun(_, Val, Acc) -> Val + Acc end, 0, Tree1).
+%% {15, Tree1} = splay_tree_ex:foldr_cache(fun(_, Val, Acc) -> Val + Acc end, 0, Tree0).
+%% {15, Tree1} = splay_tree_ex:foldr_cache(fun(_, Val, Acc) -> Val + Acc end, 0, Tree1).
 %% '''
--spec reducer(fold_fn(), Initial :: term(), tree()) -> {Result :: term(), tree()}.
-reducer(_, Initial, nil) -> {Initial, nil};
-reducer(_, _, {_, _, _, _, _, {rval, Val}} = Node) -> {Val, Node};
-reducer(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
-    {Acc, UpdRgt} = reducer(Fun, Initial, Rgt),
-    {UpdVal, UpdLft} = reducer(Fun, Fun(K, V, Acc), Lft),
+-spec foldr_cache(fold_fn(), Initial :: term(), tree()) -> {Result :: term(), tree()}.
+foldr_cache(_, Initial, nil) -> {Initial, nil};
+foldr_cache(_, _, {_, _, _, _, _, {rval, Val}} = Node) -> {Val, Node};
+foldr_cache(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
+    {Acc, UpdRgt} = foldr_cache(Fun, Initial, Rgt),
+    {UpdVal, UpdLft} = foldr_cache(Fun, Fun(K, V, Acc), Lft),
     {UpdVal, {K, V, UpdLft, UpdRgt, Size, {rval, UpdVal}}}.
 
 %% @doc Resets "reduce cache" in the given tree. 
@@ -180,14 +180,14 @@ reducer(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
 %%
 %% ```
 %% Tree0 = splay_tree_ex:from_list([{a,1},{b,3},{c,5},{d,6}]).
-%% {15, Tree1} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal + Val + RVal end, 0, Tree0).
-%% {15, Tree1} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal + Val + RVal end, 0, Tree1).
-%% Tree2 = splay_tree_ex:reset(Tree1).
-%% {90, Tree3} = splay_tree_ex:reduce(fun(LVal, Val, RVal) -> LVal * Val * RVal end, 1, Tree2).
+%% {15, Tree1} = splay_tree_ex:foldl_cache(fun(_, Val, Acc) -> Val + Acc end, 0, Tree0).
+%% {15, Tree1} = splay_tree_ex:foldl_cache(fun(_, Val, Acc) -> Val + Acc end, 0, Tree1).
+%% Tree2 = splay_tree_ex:reset_cache(Tree1).
+%% {90, Tree3} = splay_tree_ex:foldl_cache(fun(_, Val, Acc) -> Val * Acc end, 1, Tree2).
 %% '''
--spec reset(tree()) -> tree().
-reset(nil) -> nil;
-reset({K, V, Lft, Rgt, Size, _}) -> {K, V, reset(Lft), reset(Rgt), Size, nval}.
+-spec reset_cache(tree()) -> tree().
+reset_cache(nil) -> nil;
+reset_cache({K, V, Lft, Rgt, Size, _}) -> {K, V, reset_cache(Lft), reset_cache(Rgt), Size, nval}.
 
 %% @doc Returns `true' if the tree is empty, otherwise `false'.
 %%

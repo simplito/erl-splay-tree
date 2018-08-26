@@ -376,37 +376,37 @@ update_size_test() ->
     {5, Tree1} = splay_tree_ex:update_size(Tree0),
     {5, Tree1} = splay_tree_ex:update_size(Tree1).
 
-reducel_test() ->
+foldl_cache_test() ->
     Fn = fun(_, V, Acc) -> [V | Acc] end,
 
-    {0, _} = splay_tree_ex:reducel(Fn, 0, splay_tree_ex:new()),
+    {0, _} = splay_tree_ex:foldl_cache(Fn, 0, splay_tree_ex:new()),
 
     Tree0 = splay_tree_ex:from_list(entries()),
     Expected = lists:foldl(fun({_, V}, Acc) -> [V | Acc] end, [], sorted_unique_entires() ),
 
-    {Expected,  Tree1} = splay_tree_ex:reducel(Fn, [], Tree0),
-    {Expected,  Tree1} = splay_tree_ex:reducel(Fn, [], Tree1),
+    {Expected,  Tree1} = splay_tree_ex:foldl_cache(Fn, [], Tree0),
+    {Expected,  Tree1} = splay_tree_ex:foldl_cache(Fn, [], Tree1),
     {_, Tree2} = splay_tree_ex:find(rand:uniform(100), Tree1),
-    {Expected,  _} = splay_tree_ex:reducel(Fn, [], Tree2).
+    {Expected,  _} = splay_tree_ex:foldl_cache(Fn, [], Tree2).
 
-reducer_test() ->
+foldr_cache_test() ->
     Fn = fun(_, V, Acc) -> [V | Acc] end,
 
-    {0, _} = splay_tree_ex:reducer(Fn, 0, splay_tree_ex:new()),
+    {0, _} = splay_tree_ex:foldr_cache(Fn, 0, splay_tree_ex:new()),
 
     Tree0 = splay_tree_ex:from_list(entries()),
     Expected = lists:foldr(fun({_, V}, Acc) -> [V | Acc] end, [], sorted_unique_entires() ),
 
-    {Expected,  Tree1} = splay_tree_ex:reducer(Fn, [], Tree0),
-    {Expected,  Tree1} = splay_tree_ex:reducer(Fn, [], Tree1),
+    {Expected,  Tree1} = splay_tree_ex:foldr_cache(Fn, [], Tree0),
+    {Expected,  Tree1} = splay_tree_ex:foldr_cache(Fn, [], Tree1),
     {_, Tree2} = splay_tree_ex:find(rand:uniform(100), Tree1),
-    {Expected,  _} = splay_tree_ex:reducer(Fn, [], Tree2).
+    {Expected,  _} = splay_tree_ex:foldr_cache(Fn, [], Tree2).
 
-reset_test() ->
+reset_cache_test() ->
     Tree0 = splay_tree_ex:from_list([{a,1},{b,3},{c,5},{d,6}]),
     SumFn = fun(_, V, Acc) -> V + Acc end,
     MulFn = fun(_, V, Acc) -> V * Acc end,
-    {15, Tree1} = splay_tree_ex:reducel(SumFn, 0, Tree0),
-    {15, Tree1} = splay_tree_ex:reducel(SumFn, 0, Tree1),
-    Tree2 = splay_tree_ex:reset(Tree1),
-    {90, _} = splay_tree_ex:reducel(MulFn, 1, Tree2).
+    {15, Tree1} = splay_tree_ex:foldl_cache(SumFn, 0, Tree0),
+    {15, Tree1} = splay_tree_ex:foldl_cache(SumFn, 0, Tree1),
+    Tree2 = splay_tree_ex:reset_cache(Tree1),
+    {90, _} = splay_tree_ex:foldr_cache(MulFn, 1, Tree2).
