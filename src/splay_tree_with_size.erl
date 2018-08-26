@@ -79,9 +79,7 @@
 -type index()           :: pos_integer().
 
 -type maybe_tree_node() :: tree_node() | nil.
--type tree_node()       :: inner_node() | leaf_node().
--type inner_node()      :: {key(), value(), maybe_tree_node(), maybe_tree_node(), size()}.
--type leaf_node()       :: {key(), value()}.
+-type tree_node()       :: {key(), value(), maybe_tree_node(), maybe_tree_node(), size()}.
 -type direction()       :: lft | rgt. % left | right
 
 %%--------------------------------------------------------------------------------
@@ -110,9 +108,8 @@ new() -> nil.
 %% 1 = splay_tree:size(Tree1).
 %% '''
 -spec size(tree()) -> non_neg_integer().
-size(nil) -> 0;
-size({_,_}) -> 1;
-size({_, _, _, _, Size}) -> Size.
+size(nil)  -> 0;
+size(Tree) -> element(5, Tree).
 
 %% @doc Returns `true' if the tree is empty, otherwise `false'.
 %%
@@ -213,7 +210,7 @@ update(Key, Fun, Tree) ->
 -spec find(key(), tree()) -> {error, tree()} | {{ok, value()}, tree()}.
 find(Key, Tree) ->
     case path_to_node(Key, Tree) of
-        {nil,  Path} -> {error,              splay(Path)};
+        {nil,  Path} -> {error, splay(Path)};
         {Node, Path} -> {{ok,val(Node)}, splay(Node,Path)}
     end.
 
@@ -409,8 +406,7 @@ find_lower_bound(Key, Tree) ->
     {Left, Right} = split(Key, Tree),
     case Right of
         nil            -> {error, Left};
-        {K, V, nil, _, _} -> {{ok, K, V}, lft(Right, Left)};
-        {K, V}         -> {{ok, K, V}, lft(Right, Left)}
+        {K, V, nil, _, _} -> {{ok, K, V}, lft(Right, Left)}
     end.
 
 %% @doc Finds the smallest entry among those whose key is greater than `Key'.
@@ -431,15 +427,13 @@ find_upper_bound(Key, Tree) ->
     {Left, Right} = split(Key, Tree),
     case Right of
         nil                       -> {error, Left};
-        {Key, Value}              -> {error, store(Key, Value, Left)};
         {Key, Value, nil, Right2, _} ->
             Left2 = store(Key, Value, Left),
             case find_smallest(Right2) of
                 {error, _}   -> {error, Left2};
                 {Ok, Right3} -> {Ok, lft(Right3, Left2)}
             end;
-        {K, V, nil, _, _} -> {{ok, K, V}, lft(Right, Left)};
-        {K, V}         -> {{ok, K, V}, lft(Right, Left)}
+        {K, V, nil, _, _} -> {{ok, K, V}, lft(Right, Left)}
     end.
 
 %% @doc Converts `Tree` to an associated list.
@@ -639,24 +633,18 @@ val(Node) -> element(2, Node).
 val(Node, Value) -> setelement(2, Node, Value).
 
 -spec lft(tree_node()) -> maybe_tree_node().
-lft({_, _, Lft, _, _}) -> Lft;
-lft({_, _})         -> nil.
+lft({_, _, Lft, _, _}) -> Lft.
 
 -spec lft(tree_node(), maybe_tree_node()) -> tree_node().
-lft({Key, Val, _, nil, _}, nil) -> {Key, Val};
-lft({Key, Val, _, Rgt, _}, Lft) -> {Key, Val, Lft, Rgt, size(Lft) + size(Rgt) + 1};
-lft({Key, Val}, nil)         -> {Key, Val};
-lft({Key, Val}, Lft)         -> {Key, Val, Lft, nil, size(Lft) + 1}.
+lft({Key, Val, _, nil, _}, nil) -> {Key, Val, nil, nil, 1};
+lft({Key, Val, _, Rgt, _}, Lft) -> {Key, Val, Lft, Rgt, size(Lft) + size(Rgt) + 1}.
 
 -spec rgt(tree_node()) -> maybe_tree_node().
-rgt({_, _, _, Rgt, _}) -> Rgt;
-rgt({_, _})         -> nil.
+rgt({_, _, _, Rgt, _}) -> Rgt.
 
 -spec rgt(tree_node(), maybe_tree_node()) -> tree_node().
-rgt({Key, Val, nil, _, _}, nil) -> {Key, Val};
-rgt({Key, Val, Lft, _, _}, Rgt) -> {Key, Val, Lft, Rgt, size(Lft) + size(Rgt) + 1};
-rgt({Key, Val}, nil)         -> {Key, Val};
-rgt({Key, Val}, Rgt)         -> {Key, Val, nil, Rgt, size(Rgt) + 1}.
+rgt({Key, Val, nil, _, _}, nil) -> {Key, Val, nil, nil, 1};
+rgt({Key, Val, Lft, _, _}, Rgt) -> {Key, Val, Lft, Rgt, size(Lft) + size(Rgt) + 1}.
 
 -spec lft_rgt(tree_node(), maybe_tree_node(), maybe_tree_node()) -> tree_node().
 lft_rgt(Node, Lft, Rgt) -> {key(Node), val(Node), Lft, Rgt, size(Lft) + size(Rgt) + 1}.
@@ -665,7 +653,7 @@ lft_rgt(Node, Lft, Rgt) -> {key(Node), val(Node), Lft, Rgt, size(Lft) + size(Rgt
 rgt_lft(Node, Rgt, Lft) -> {key(Node), val(Node), Lft, Rgt, size(Lft) + size(Rgt) + 1}.
 
 -spec leaf(key(), value()) -> tree_node().
-leaf(Key, Value) -> {Key, Value}.
+leaf(Key, Value) -> {Key, Value, nil, nil, 1}.
 
 -spec pop_front(tree_node()) -> maybe_tree_node().
 pop_front(Node) ->
@@ -678,7 +666,7 @@ pop_front(Node) ->
 move_largest_node_to_front(nil)  -> nil;
 move_largest_node_to_front(Node) -> move_largest_node_to_front(Node, []).
 
--spec move_largest_node_to_front(tree_node(), [tree_node()]) -> tree_node().
+-spec move_largest_node_to_front(tree_node(), [{direction(), tree_node()}]) -> tree_node().
 move_largest_node_to_front(Node, Path) ->
     case rgt(Node) of
         nil -> splay(Node, Path);
@@ -689,7 +677,7 @@ move_largest_node_to_front(Node, Path) ->
 move_smallest_node_to_front(nil)  -> nil;
 move_smallest_node_to_front(Node) -> move_smallest_node_to_front(Node, []).
 
--spec move_smallest_node_to_front(tree_node(), [tree_node()]) -> tree_node().
+-spec move_smallest_node_to_front(tree_node(), [{direction(), tree_node()}]) -> tree_node().
 move_smallest_node_to_front(Node, Path) ->
     case lft(Node) of
         nil -> splay(Node, Path);

@@ -90,13 +90,22 @@ method(splay_tree_with_size, find)      -> fun ({K, _}, M) -> element(2, splay_t
 method(splay_tree_with_size, erase)     -> fun ({K, _}, M) -> splay_tree_with_size:erase(K, M) end.
 
 times(LoopCount, InputData, Map, Fun) ->
-    true = garbage_collect(),
-    {Elapsed, _} =
-        timer:tc(
-          fun () ->
-                  loop(LoopCount, InputData, Map, Fun)
-          end),
-    Elapsed.
+    Loop = 
+        fun Loop(TimeLeft, Acc) ->
+            true = garbage_collect(),
+            {Elapsed, _} =
+                timer:tc(
+                  fun () ->
+                      loop(LoopCount, InputData, Map, Fun)
+                  end),
+            RestTime = TimeLeft - Elapsed,
+            case RestTime > 0 of
+                true  -> Loop(RestTime, [Elapsed | Acc]);
+                false -> [Elapsed | Acc]
+            end
+        end,
+    Measures = Loop(500000, []),
+    round(lists:sum(Measures)/length(Measures)).
 
 loop(0, _, _, _) ->
     ok;
