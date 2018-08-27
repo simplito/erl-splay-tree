@@ -26,14 +26,18 @@
          lookup/2, get_value/3, erase/2,
          size/1, update_size/1, is_empty/1, update/4, update/3, filter/2, map/2,
          keys/1, values/1,
-         foldl/3, foldr/3, foldl_while/3, foldr_while/3, from_list/1, to_list/1, split/2]).
+         foldl/3, foldr/3, foldl_while/3, foldr_while/3, from_list/1, to_list/1, split/2, join/2]).
 
 -export([index/2, at/2]).
+
+-export([iterator/1, iterator_from/2, next/1]).
 
 -export([foldl_cache/3, foldr_cache/3, reset_cache/1]).
 
 -export_type([tree/0, tree/2, key/0, value/0,
               update_fn/0, map_fn/0, fold_fn/0, fold_while_fn/0, pred_fn/0]).
+
+-export_type([iter/0]).
 
 %%--------------------------------------------------------------------------------
 %% Exported Types
@@ -73,6 +77,8 @@
 %% A function that folds the entries in a splay tree.
 %%
 %% If the value of `Continue' is `true', the folding will be broken and `AccOut' will be returned as the resulting value.
+
+-type iter() :: [tree_node()].
 
 %%--------------------------------------------------------------------------------
 %% Internal Types
@@ -188,6 +194,33 @@ foldr_cache(Fun, Initial, {K, V, Lft, Rgt, Size, nval}) ->
 -spec reset_cache(tree()) -> tree().
 reset_cache(nil) -> nil;
 reset_cache({K, V, Lft, Rgt, Size, _}) -> {K, V, reset_cache(Lft), reset_cache(Rgt), Size, nval}.
+
+%% @doc Returns an iterator that can be used for traversing the entries of `Tree'; see `next/1'.
+-spec iterator(tree()) -> iter().
+iterator(Tree) ->
+    iterator(Tree, []).
+
+%% @doc Returns an iterator that can be used for traversing the entries of `Tree'; see `next/1'.
+%% The difference as compared to the iterator returned by `iterator/1' is that
+%% the first key greater than or equal to Key is returned.
+-spec iterator_from(key(), tree()) -> iter().
+iterator_from(Key, Tree) ->
+    {_, Rgt} = split(Key, Tree),
+    iterator(Rgt, []).
+
+%% @doc Returns `{Key, Value, Iter2}', where `Key' is the smallest key referred to by iterator `Iter1',
+%% and `Iter2' is the new iterator to be used for traversing the remaining nodes,
+%% or the atom `none' if no nodes remain.
+-spec next(Iter1 :: iter()) -> none | {Key :: key(), value(), Iter2 :: iter()}.
+next([Node|Rest]) ->
+    {key(Node), val(Node), iterator(rgt(Node), Rest)};
+next([]) ->
+    none.
+
+iterator(nil, Path) ->
+    Path;
+iterator(Node, Path) ->
+    iterator(lft(Node), [Node|Path]).
 
 %% @doc Returns `true' if the tree is empty, otherwise `false'.
 %%
@@ -465,6 +498,25 @@ split(BorderKey, Tree) ->
                 false -> {lft(Tree2), lft(Tree2, nil)}
             end
     end.
+
+%% @doc Joins `LeftTree' and `RightTree'.
+%%
+%% `LeftTree' contains the entries with keys smaller than all keys from `RightTree'.
+%%
+%% == Example ==
+%%
+%% ```
+%% LeftTree = splay_tree_ex:from_list([{1, a}]),
+%% RightTree = splay_tree_ex:from_list([{2, b}, {3, c}]).
+%% Tree = splay_tree_ex:join(LeftTree, RightTree).
+%%
+%% [1, 2, 3] = splay_tree_ex:keys(Tree).
+%% '''
+-spec join(tree(), tree()) -> tree().
+join(Lft, nil) -> Lft;
+join(nil, Rgt) -> Rgt;
+join(Lft, Rgt) ->
+    rgt( move_largest_node_to_front(Lft), Rgt ).
 
 %% @doc Finds the smallest entry among those whose key is equal to or greater than `Key'.
 %%
